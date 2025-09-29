@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.2 - 2025-09-29
+
+### Changed
+- Initial implementation of the config management CLI 
+
+### Tooling/CI
+- Add unit tests to CI workflow
+
 ## v1.0.1 - 2025-09-28
 
 ### Changed
