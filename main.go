@@ -9,13 +9,18 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+
+	"datasheet-to-md-mcp/config"
+	"datasheet-to-md-mcp/logger"
+	"datasheet-to-md-mcp/mcp"
+	"datasheet-to-md-mcp/pdfconv"
 )
 
 // MCPServer represents the main MCP server instance that handles PDF to Markdown conversion
 type MCPServer struct {
-	config    *Config
-	converter *PDFConverter
-	logger    *Logger
+	config    *config.Config
+	converter *pdfconv.PDFConverter
+	logger    *logger.Logger
 }
 
 // main is the entry point of the PDF to Markdown MCP server.
@@ -29,32 +34,32 @@ func main() {
 	}
 
 	// Initialize configuration from environment variables
-	config, err := LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	// Initialize logger with configured log level
-	logger := NewLogger(config.LogLevel)
+	logr := logger.NewLogger(cfg.LogLevel)
 
 	// Create PDF converter instance with the loaded configuration
-	converter, err := NewPDFConverter(config, logger)
+	converter, err := pdfconv.NewPDFConverter(cfg, logr)
 	if err != nil {
-		logger.Fatal("Failed to create PDF converter: %v", err)
+		logr.Fatal("Failed to create PDF converter: %v", err)
 	}
 
 	// Create the main MCP server instance
 	server := &MCPServer{
-		config:    config,
+		config:    cfg,
 		converter: converter,
-		logger:    logger,
+		logger:    logr,
 	}
 
-	logger.Info("Starting PDF to Markdown MCP server v%s", config.ServerVersion)
+	logr.Info("Starting PDF to Markdown MCP server v%s", cfg.ServerVersion)
 
 	// Start the MCP protocol handler based on the configured transport
 	if err := server.Start(); err != nil {
-		logger.Fatal("Server failed to start: %v", err)
+		logr.Fatal("Server failed to start: %v", err)
 	}
 }
 
@@ -78,12 +83,11 @@ func (s *MCPServer) startStdioTransport() error {
 	s.logger.Info("Starting STDIO transport")
 
 	// Create MCP message handler
-	handler := NewMCPHandler(s.converter, s.logger)
+	handler := mcp.NewMCPHandler(s.converter, s.logger)
 
 	// Process messages from stdin and write responses to stdout
 	return handler.HandleStdio()
 }
-
 
 // MCPRequest represents an incoming MCP protocol message with method and parameters
 type MCPRequest struct {
@@ -121,42 +125,29 @@ func (s *MCPServer) handleMCPRequest(request *MCPRequest) *MCPResponse {
 	case "tools/call":
 		result, err := s.handleToolsCall(request.Params)
 		if err != nil {
-			response.Error = &MCPError{
-				Code:    -32603,
-				Message: err.Error(),
-			}
+			response.Error = &MCPError{Code: -32603, Message: err.Error()}
 		} else {
 			response.Result = result
 		}
 	default:
-		response.Error = &MCPError{
-			Code:    -32601,
-			Message: fmt.Sprintf("Method not found: %s", request.Method),
-		}
+		response.Error = &MCPError{Code: -32601, Message: fmt.Sprintf("Method not found: %s", request.Method)}
 	}
 
 	return response
 }
 
 // handleInitialize processes the MCP initialize request and returns server capabilities.
-// This is called when a client first connects to establish the server's capabilities.
 func (s *MCPServer) handleInitialize(params map[string]interface{}) map[string]interface{} {
 	s.logger.Info("Client initializing connection")
 
 	return map[string]interface{}{
 		"protocolVersion": "2024-11-05",
-		"capabilities": map[string]interface{}{
-			"tools": map[string]interface{}{},
-		},
-		"serverInfo": map[string]interface{}{
-			"name":    s.config.ServerName,
-			"version": s.config.ServerVersion,
-		},
+		"capabilities":    map[string]interface{}{"tools": map[string]interface{}{}},
+		"serverInfo":      map[string]interface{}{"name": s.config.ServerName, "version": s.config.ServerVersion},
 	}
 }
 
 // handleToolsList returns the list of available tools that this MCP server provides.
-// Currently provides tools for PDF conversion: single file and directory batch processing.
 func (s *MCPServer) handleToolsList() map[string]interface{} {
 	return map[string]interface{}{
 		"tools": []map[string]interface{}{
@@ -166,14 +157,8 @@ func (s *MCPServer) handleToolsList() map[string]interface{} {
 				"inputSchema": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"pdf_path": map[string]interface{}{
-							"type":        "string",
-							"description": "Path to the input PDF file",
-						},
-						"output_dir": map[string]interface{}{
-							"type":        "string",
-							"description": "Base output directory (optional, uses config default if not provided)",
-						},
+						"pdf_path":   map[string]interface{}{"type": "string", "description": "Path to the input PDF file"},
+						"output_dir": map[string]interface{}{"type": "string", "description": "Base output directory (optional, uses config default if not provided)"},
 					},
 					"required": []string{"pdf_path"},
 				},
@@ -184,14 +169,8 @@ func (s *MCPServer) handleToolsList() map[string]interface{} {
 				"inputSchema": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"input_dir": map[string]interface{}{
-							"type":        "string",
-							"description": "Directory path containing PDF files to process",
-						},
-						"output_dir": map[string]interface{}{
-							"type":        "string",
-							"description": "Base output directory (optional, uses config default if not provided)",
-						},
+						"input_dir":  map[string]interface{}{"type": "string", "description": "Directory path containing PDF files to process"},
+						"output_dir": map[string]interface{}{"type": "string", "description": "Base output directory (optional, uses config default if not provided)"},
 					},
 					"required": []string{"input_dir"},
 				},
@@ -201,17 +180,14 @@ func (s *MCPServer) handleToolsList() map[string]interface{} {
 }
 
 // handleToolsCall executes a tool call request, specifically handling PDF to Markdown conversion.
-// It validates the parameters, performs the conversion, and returns the results.
 func (s *MCPServer) handleToolsCall(params map[string]interface{}) (map[string]interface{}, error) {
 	toolName, ok := params["name"].(string)
 	if !ok {
 		return nil, fmt.Errorf("missing tool name")
 	}
-
 	if toolName != "convert_pdf_to_markdown" && toolName != "convert_pdfs_in_directory" {
 		return nil, fmt.Errorf("unknown tool: %s", toolName)
 	}
-
 	arguments, ok := params["arguments"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("missing tool arguments")
@@ -223,55 +199,30 @@ func (s *MCPServer) handleToolsCall(params map[string]interface{}) (map[string]i
 		if !ok {
 			return nil, fmt.Errorf("missing required parameter: pdf_path")
 		}
-
-		// Use provided output directory or fall back to config default
 		outputDir := s.config.OutputBaseDir
 		if providedDir, exists := arguments["output_dir"].(string); exists {
 			outputDir = providedDir
 		}
-
 		s.logger.Info("Converting PDF to Markdown: %s", pdfPath)
-
-		// Perform the PDF to Markdown conversion
 		result, err := s.converter.ConvertPDF(pdfPath, outputDir)
 		if err != nil {
 			return nil, fmt.Errorf("conversion failed: %v", err)
 		}
-
-		return map[string]interface{}{
-			"content": []map[string]interface{}{
-				{
-					"type": "text",
-					"text": fmt.Sprintf("Successfully converted PDF to Markdown:\n\nOutput directory: %s\nMarkdown file: %s\nExtracted images: %d\nTotal pages processed: %d",
-						result.OutputDir,
-						result.MarkdownFile,
-						result.ImageCount,
-						result.PageCount,
-					),
-				},
-			},
-		}, nil
-
+		return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": fmt.Sprintf("Successfully converted PDF to Markdown:\n\nOutput directory: %s\nMarkdown file: %s\nExtracted images: %d\nTotal pages processed: %d", result.OutputDir, result.MarkdownFile, result.ImageCount, result.PageCount)}}}, nil
 	case "convert_pdfs_in_directory":
 		inputDir, ok := arguments["input_dir"].(string)
 		if !ok {
 			return nil, fmt.Errorf("missing required parameter: input_dir")
 		}
-
-		// Use provided output directory or fall back to config default
 		outputDir := s.config.OutputBaseDir
 		if providedDir, exists := arguments["output_dir"].(string); exists {
 			outputDir = providedDir
 		}
-
 		s.logger.Info("Converting PDFs in directory to Markdown: %s", inputDir)
-
-		// Perform the directory batch conversion
 		batchResult, err := s.converter.ConvertPDFsInDirectory(inputDir, outputDir)
 		if err != nil {
 			return nil, fmt.Errorf("directory conversion failed: %v", err)
 		}
-
 		var summary strings.Builder
 		summary.WriteString(fmt.Sprintf("Batch PDF Conversion Completed\n\n"))
 		summary.WriteString(fmt.Sprintf("Input Directory: %s\n", batchResult.InputDir))
@@ -281,31 +232,19 @@ func (s *MCPServer) handleToolsCall(params map[string]interface{}) (map[string]i
 		summary.WriteString(fmt.Sprintf("Failed Conversions: %d\n", batchResult.FailureCount))
 		summary.WriteString(fmt.Sprintf("Total Pages Processed: %d\n", batchResult.TotalPageCount))
 		summary.WriteString(fmt.Sprintf("Total Images Extracted: %d\n\n", batchResult.TotalImageCount))
-
 		if len(batchResult.Results) > 0 {
 			summary.WriteString("Converted Files:\n")
 			for _, result := range batchResult.Results {
-				summary.WriteString(fmt.Sprintf("- %s: %d pages, %d images\n",
-					result.MarkdownFile, result.PageCount, result.ImageCount))
+				summary.WriteString(fmt.Sprintf("- %s: %d pages, %d images\n", result.MarkdownFile, result.PageCount, result.ImageCount))
 			}
 		}
-
 		if batchResult.FailureCount > 0 {
 			summary.WriteString("\nErrors:\n")
 			for _, err := range batchResult.Errors {
 				summary.WriteString(fmt.Sprintf("- %s: %s\n", err.PDFPath, err.Error))
 			}
 		}
-
-		return map[string]interface{}{
-			"content": []map[string]interface{}{
-				{
-					"type": "text",
-					"text": summary.String(),
-				},
-			},
-		}, nil
+		return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": summary.String()}}}, nil
 	}
-
 	return nil, fmt.Errorf("unexpected tool name: %s", toolName)
 }

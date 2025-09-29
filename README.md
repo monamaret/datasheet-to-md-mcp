@@ -83,6 +83,40 @@ Download the latest release for your platform from the [Releases page](https://g
    go build -o pdf-md-mcp.exe .
    ```
 
+4. **Add to PATH (Choose one method):**
+
+   **Method A - Copy to System Directory (Recommended):**
+   ```cmd
+   # Copy the binary to a directory already in PATH
+   copy pdf-md-mcp.exe "C:\Windows\System32\"
+   ```
+
+   **Method B - Add Project Directory to PATH:**
+   ```cmd
+   # Get current directory path
+   echo %CD%
+   
+   # Add to system PATH permanently
+   setx PATH "%PATH%;%CD%" /M
+   
+   # Or add to user PATH only (no admin required)
+   setx PATH "%PATH%;%CD%"
+   ```
+
+   **Method C - Manual PATH Setup:**
+   1. Right-click "This PC" → Properties → Advanced System Settings
+   2. Click "Environment Variables"
+   3. Under "System Variables" (or "User Variables"), find "Path"
+   4. Click "Edit" → "New" → Add your project directory path
+   5. Click "OK" to save all dialogs
+   6. Restart Command Prompt/PowerShell
+
+5. **Verify Installation:**
+   ```cmd
+   # Open a new Command Prompt and test
+   pdf-md-mcp --version
+   ```
+
 #### Mac
 1. Install Go using Homebrew (recommended):
    ```bash
@@ -93,11 +127,58 @@ Download the latest release for your platform from the [Releases page](https://g
    brew install go
    
    # Clone and build
-   git clone https://github.com/your-repo/datasheet-to-md-mcp.git
+   git clone https://github.com/monamaret/datasheet-to-md-mcp.git
    cd datasheet-to-md-mcp
    make setup
    make build
    ```
+
+2. **Add to PATH (Choose one method):**
+
+   **Method A - Copy to /usr/local/bin (Recommended):**
+   ```bash
+   # Copy binary to standard location
+   sudo cp ./bin/pdf-md-mcp /usr/local/bin/
+   
+   # Make executable (if needed)
+   sudo chmod +x /usr/local/bin/pdf-md-mcp
+   ```
+
+   **Method B - Create Symlink:**
+   ```bash
+   # Create symbolic link in /usr/local/bin
+   sudo ln -sf "$(pwd)/bin/pdf-md-mcp" /usr/local/bin/pdf-md-mcp
+   ```
+
+   **Method C - Add to Shell Profile:**
+   ```bash
+   # Add project bin directory to PATH in your shell profile
+   echo 'export PATH="'$(pwd)'/bin:$PATH"' >> ~/.zshrc    # For zsh (default on macOS)
+   echo 'export PATH="'$(pwd)'/bin:$PATH"' >> ~/.bash_profile  # For bash
+   
+   # Reload shell configuration
+   source ~/.zshrc    # or source ~/.bash_profile
+   ```
+
+   **Method D - Manual PATH for Current Session:**
+   ```bash
+   # Temporary PATH addition (current terminal session only)
+   export PATH="$(pwd)/bin:$PATH"
+   ```
+
+3. **Verify Installation:**
+   ```bash
+   # Test the installation
+   pdf-md-mcp --version
+   
+   # Check which binary is being used
+   which pdf-md-mcp
+   ```
+
+4. **macOS Security Notes:**
+   - On first run, macOS may show a security warning
+   - Go to System Preferences → Security & Privacy → Allow the app
+   - Or use: `sudo xattr -r -d com.apple.quarantine /usr/local/bin/pdf-md-mcp`
 
 #### Raspberry Pi Linux
 1. Install Go and Git:
@@ -121,6 +202,90 @@ Download the latest release for your platform from the [Releases page](https://g
    make setup
    make build
    ```
+
+2. **Add to PATH (Choose one method):**
+
+   **Method A - Copy to /usr/local/bin (Recommended):**
+   ```bash
+   # Copy binary to standard location
+   sudo cp ./bin/pdf-md-mcp /usr/local/bin/
+   
+   # Make executable
+   sudo chmod +x /usr/local/bin/pdf-md-mcp
+   ```
+
+   **Method B - Create Symlink:**
+   ```bash
+   # Create symbolic link in /usr/local/bin
+   sudo ln -sf "$(pwd)/bin/pdf-md-mcp" /usr/local/bin/pdf-md-mcp
+   ```
+
+   **Method C - Add to Shell Profile:**
+   ```bash
+   # Add project bin directory to PATH
+   echo 'export PATH="'$(pwd)'/bin:$PATH"' >> ~/.bashrc
+   
+   # Reload shell configuration
+   source ~/.bashrc
+   ```
+
+   **Method D - System-wide Installation:**
+   ```bash
+   # For system-wide access (all users)
+   sudo cp ./bin/pdf-md-mcp /usr/bin/
+   sudo chmod +x /usr/bin/pdf-md-mcp
+   ```
+
+3. **Verify Installation:**
+   ```bash
+   # Test the installation
+   pdf-md-mcp --version
+   
+   # Check which binary is being used
+   which pdf-md-mcp
+   
+   # Check permissions
+   ls -la $(which pdf-md-mcp)
+   ```
+
+4. **Raspberry Pi Specific Notes:**
+   - Ensure you have sufficient disk space for the build process
+   - Building may take longer on older Raspberry Pi models
+   - Consider using a swap file if you encounter memory issues during compilation:
+     ```bash
+     sudo dphys-swapfile swapoff
+     sudo nano /etc/dphys-swapfile  # Increase CONF_SWAPSIZE to 1024
+     sudo dphys-swapfile setup
+     sudo dphys-swapfile swapon
+     ```
+
+### Alternative Installation Methods
+
+#### Using Go Install (All Platforms)
+If you have Go installed and configured:
+```bash
+# Install directly from source
+go install github.com/your-repo/datasheet-to-md-mcp@latest
+
+# The binary will be available in $GOPATH/bin or $HOME/go/bin
+# Make sure this directory is in your PATH:
+export PATH=$PATH:$(go env GOPATH)/bin
+```
+
+#### Docker Installation (All Platforms)
+```bash
+# Build Docker image
+docker build -t pdf-md-mcp .
+
+# Run as container
+docker run -v /path/to/pdfs:/input -v /path/to/output:/output pdf-md-mcp
+
+# Create wrapper script for easier use
+echo '#!/bin/bash
+docker run -v "$PWD:/input" -v "$PWD/output:/output" pdf-md-mcp "$@"' > pdf-md-mcp
+chmod +x pdf-md-mcp
+sudo mv pdf-md-mcp /usr/local/bin/
+```
 
 ## Configuration
 
