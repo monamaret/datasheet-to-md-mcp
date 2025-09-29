@@ -254,3 +254,113 @@ func contains(slice []string, item string) bool {
 	}
 	return false
 }
+
+// ConfigExample returns a string containing an example configuration file with all
+// available settings and their default values. This can be used to generate new
+// configuration files with helpful comments and documentation.
+//
+// Returns:
+//   - string: Complete example configuration content with comments and default values
+func ConfigExample() string {
+	var lines []string
+
+	lines = append(lines, "# PDF to Markdown MCP Server Configuration")
+	lines = append(lines, "# See README.md for detailed descriptions of each setting.")
+	lines = append(lines, "")
+
+	// Configuration sections with descriptions
+	configSections := []struct {
+		Title string
+		Keys  []struct {
+			Key         string
+			Description string
+			Default     string
+		}
+	}{
+		{
+			Title: "PDF Input/Output Settings",
+			Keys: []struct {
+				Key         string
+				Description string
+				Default     string
+			}{
+				{"PDF_INPUT_DIR", "Directory containing PDF files to process", ""},
+				{"OUTPUT_BASE_DIR", "Base output directory", "./output"},
+			},
+		},
+		{
+			Title: "Server Settings",
+			Keys: []struct {
+				Key         string
+				Description string
+				Default     string
+			}{
+				{"MCP_SERVER_NAME", "Server identification name", "pdf-to-markdown-server"},
+				{"MCP_SERVER_VERSION", "Server version", "1.0.0"},
+			},
+		},
+		{
+			Title: "Image Processing Settings",
+			Keys: []struct {
+				Key         string
+				Description string
+				Default     string
+			}{
+				{"IMAGE_MAX_DPI", "Maximum image resolution (72-600)", "300"},
+				{"IMAGE_FORMAT", "Image output format (png/jpg)", "png"},
+				{"PRESERVE_ASPECT_RATIO", "Maintain image aspect ratios", "true"},
+			},
+		},
+		{
+			Title: "Diagram Detection and PlantUML Settings",
+			Keys: []struct {
+				Key         string
+				Description string
+				Default     string
+			}{
+				{"DETECT_DIAGRAMS", "Enable diagram detection and PlantUML generation", "false"},
+				{"DIAGRAM_CONFIDENCE", "Minimum confidence for diagram detection (0.0-1.0)", "0.7"},
+				{"PLANTUML_STYLE", "PlantUML diagram style (default/blueprint/modern)", "default"},
+				{"PLANTUML_COLOR_SCHEME", "PlantUML color scheme (mono/color/auto)", "auto"},
+			},
+		},
+		{
+			Title: "Markdown Generation Settings",
+			Keys: []struct {
+				Key         string
+				Description string
+				Default     string
+			}{
+				{"INCLUDE_TOC", "Generate table of contents", "true"},
+				{"BASE_HEADER_LEVEL", "Starting header level (1-6)", "1"},
+				{"EXTRACT_TABLES", "Enable table extraction", "true"},
+				{"EXTRACT_IMAGES", "Enable image extraction", "true"},
+			},
+		},
+		{
+			Title: "Logging and Transport Settings",
+			Keys: []struct {
+				Key         string
+				Description string
+				Default     string
+			}{
+				{"LOG_LEVEL", "Logging verbosity (debug/info/warn/error)", "info"},
+				{"MCP_TRANSPORT", "Transport method for MCP communication (stdio)", "stdio"},
+			},
+		},
+	}
+
+	for i, section := range configSections {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, fmt.Sprintf("# %s", section.Title))
+		for _, key := range section.Keys {
+			lines = append(lines, fmt.Sprintf("# %s", key.Description))
+			lines = append(lines, fmt.Sprintf("%s=%s", key.Key, key.Default))
+			lines = append(lines, "")
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}

@@ -4,10 +4,13 @@
 package pdfconv
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -183,8 +186,15 @@ func (c *PDFConverter) extractImagesFromPage(page pdf.Page, pageNum int, outputD
 			imageCount++
 			filename := fmt.Sprintf("page_%d_image_%d.png", pageNum, imageCount)
 			imagePath := filepath.Join(outputDir, filename)
-			placeholderImg := c.createPlaceholderImage(200, 150)
-			if err := c.saveImage(placeholderImg, imagePath); err != nil {
+
+			// Extract actual image data from PDF
+			img, err := c.extractImageFromXObject(obj)
+			if err != nil {
+				c.logger.Warn("Failed to extract image data for %s: %v, using placeholder", filename, err)
+				img = c.createPlaceholderImage(200, 150)
+			}
+
+			if err := c.saveImage(img, imagePath); err != nil {
 				c.logger.Warn("Failed to save image %s: %v", imagePath, err)
 				continue
 			}
@@ -201,9 +211,9 @@ func (c *PDFConverter) extractImagesFromPage(page pdf.Page, pageNum int, outputD
 				}
 			}
 			pdfImage := PDFImage{
-				Data:     placeholderImg,
-				Width:    placeholderImg.Bounds().Dx(),
-				Height:   placeholderImg.Bounds().Dy(),
+				Data:     img,
+				Width:    img.Bounds().Dx(),
+				Height:   img.Bounds().Dy(),
 				Filename: filename,
 				Diagrams: diagrams,
 			}
@@ -218,6 +228,206 @@ func (c *PDFConverter) extractImagesFromPage(page pdf.Page, pageNum int, outputD
 	return images, nil
 }
 
+func (c *PDFConverter) extractImageFromXObject(obj pdf.Value) (image.Image, error) {
+	// Get the image stream data
+	reader := obj.Reader()
+	if reader == nil {
+		return nil, fmt.Errorf("failed to get reader from XObject")
+	}
+	defer reader.Close()
+
+	// Read the stream data
+	stream, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read stream from XObject: %v", err)
+	}
+
+	// Get image properties
+	width := int(obj.Key("Width").Int64())
+	height := int(obj.Key("Height").Int64())
+	colorSpace := obj.Key("ColorSpace").Name()
+	bitsPerComponent := int(obj.Key("BitsPerComponent").Int64())
+
+	c.logger.Debug("Extracting image: %dx%d, colorspace: %s, bits: %d", width, height, colorSpace, bitsPerComponent)
+
+	// Check for image filters
+	filter := obj.Key("Filter")
+	if !filter.IsNull() {
+		filterName := filter.Name()
+		switch filterName {
+		case "DCTDecode":
+			// This is a JPEG image, try to decode it directly
+			img, err := jpeg.Decode(bytes.NewReader(stream))
+			if err != nil {
+				c.logger.Debug("Failed to decode JPEG directly: %v", err)
+				return c.decodeRawImageData(stream, width, height, colorSpace, bitsPerComponent)
+			}
+			return img, nil
+		case "FlateDecode":
+			// This is compressed data, the stream should already be decompressed by the PDF library
+			return c.decodeRawImageData(stream, width, height, colorSpace, bitsPerComponent)
+		case "CCITTFaxDecode":
+			// CCITT Fax encoding, typically used for black and white images
+			c.logger.Debug("CCITT Fax encoded image detected, using placeholder")
+			return c.createPlaceholderImage(width, height), nil
+		default:
+			c.logger.Debug("Unknown filter %s, attempting raw decode", filterName)
+			return c.decodeRawImageData(stream, width, height, colorSpace, bitsPerComponent)
+		}
+	}
+
+	// No filter specified, decode as raw image data
+	return c.decodeRawImageData(stream, width, height, colorSpace, bitsPerComponent)
+}
+
+func (c *PDFConverter) decodeRawImageData(data []byte, width, height int, colorSpace string, bitsPerComponent int) (image.Image, error) {
+	if width <= 0 || height <= 0 {
+		return nil, fmt.Errorf("invalid image dimensions: %dx%d", width, height)
+	}
+
+	// Handle ColorSpace as an array (e.g., [/ICCBased ...])
+	if colorSpace == "" {
+		colorSpace = "DeviceRGB" // Default fallback
+	}
+
+	// Create an RGBA image
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// Calculate bytes per pixel based on color space and bits per component
+	var bytesPerPixel int
+	switch colorSpace {
+	case "DeviceRGB", "RGB":
+		bytesPerPixel = 3
+	case "DeviceGray", "Gray":
+		bytesPerPixel = 1
+	case "DeviceCMYK", "CMYK":
+		bytesPerPixel = 4
+	default:
+		// Handle ICCBased and other complex color spaces
+		if strings.Contains(colorSpace, "ICCBased") || strings.Contains(colorSpace, "CalRGB") {
+			c.logger.Debug("ICC/CalRGB color space detected, assuming RGB")
+			bytesPerPixel = 3
+		} else {
+			c.logger.Debug("Unknown color space %s, assuming RGB", colorSpace)
+			bytesPerPixel = 3
+		}
+	}
+
+	// Handle different bits per component
+	if bitsPerComponent != 8 && bitsPerComponent != 1 {
+		c.logger.Debug("Unsupported bits per component: %d, using placeholder", bitsPerComponent)
+		return c.createPlaceholderImage(width, height), nil
+	}
+
+	// Special handling for 1-bit images (black and white)
+	if bitsPerComponent == 1 {
+		return c.decode1BitImage(data, width, height), nil
+	}
+
+	expectedDataSize := width * height * bytesPerPixel
+	if len(data) < expectedDataSize {
+		c.logger.Debug("Insufficient image data: got %d bytes, expected %d, using smaller dimensions or placeholder", len(data), expectedDataSize)
+		// Try to extract what we can
+		if len(data) < width*height {
+			return c.createPlaceholderImage(width, height), nil
+		}
+	}
+
+	// Convert pixel data based on color space
+	dataIndex := 0
+	for y := 0; y < height && dataIndex < len(data); y++ {
+		for x := 0; x < width && dataIndex < len(data); x++ {
+			var r, g, b uint8 = 0, 0, 0
+
+			switch colorSpace {
+			case "DeviceGray", "Gray":
+				if dataIndex < len(data) {
+					gray := data[dataIndex]
+					r, g, b = gray, gray, gray
+					dataIndex++
+				}
+			case "DeviceRGB", "RGB":
+				if dataIndex+2 < len(data) {
+					r = data[dataIndex]
+					g = data[dataIndex+1]
+					b = data[dataIndex+2]
+					dataIndex += 3
+				} else {
+					// Incomplete pixel data
+					break
+				}
+			case "DeviceCMYK", "CMYK":
+				if dataIndex+3 < len(data) {
+					// Simple CMYK to RGB conversion
+					cVal := float64(data[dataIndex]) / 255.0
+					mVal := float64(data[dataIndex+1]) / 255.0
+					yVal := float64(data[dataIndex+2]) / 255.0
+					kVal := float64(data[dataIndex+3]) / 255.0
+
+					r = uint8(255 * (1 - cVal) * (1 - kVal))
+					g = uint8(255 * (1 - mVal) * (1 - kVal))
+					b = uint8(255 * (1 - yVal) * (1 - kVal))
+					dataIndex += 4
+				} else {
+					// Incomplete pixel data
+					break
+				}
+			default:
+				// Assume RGB for unknown color spaces
+				if dataIndex+2 < len(data) {
+					r = data[dataIndex]
+					g = data[dataIndex+1]
+					b = data[dataIndex+2]
+					dataIndex += 3
+				} else if dataIndex < len(data) {
+					// Single channel fallback
+					gray := data[dataIndex]
+					r, g, b = gray, gray, gray
+					dataIndex++
+				}
+			}
+
+			img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+		}
+	}
+
+	return img, nil
+}
+
+func (c *PDFConverter) decode1BitImage(data []byte, width, height int) image.Image {
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	bitIndex := 0
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			byteIndex := bitIndex / 8
+			bitPosition := 7 - (bitIndex % 8)
+
+			if byteIndex >= len(data) {
+				return img
+			}
+
+			bit := (data[byteIndex] >> bitPosition) & 1
+			var colorVal uint8
+			if bit == 1 {
+				colorVal = 0 // Black for 1
+			} else {
+				colorVal = 255 // White for 0
+			}
+
+			img.Set(x, y, color.RGBA{R: colorVal, G: colorVal, B: colorVal, A: 255})
+			bitIndex++
+		}
+
+		// Align to byte boundary at end of each row if needed
+		if bitIndex%8 != 0 {
+			bitIndex = ((bitIndex / 8) + 1) * 8
+		}
+	}
+
+	return img
+}
+
 func (c *PDFConverter) createPlaceholderImage(width, height int) image.Image {
 	img := imaging.New(width, height, color.RGBA{240, 240, 240, 255})
 	return img
@@ -229,9 +439,13 @@ func (c *PDFConverter) saveImage(img image.Image, filePath string) error {
 		return fmt.Errorf("failed to create image file %s: %v", filePath, err)
 	}
 	defer file.Close()
+
+	// Always save as PNG for consistency and quality
 	if err := png.Encode(file, img); err != nil {
 		return fmt.Errorf("failed to encode image %s: %v", filePath, err)
 	}
+
+	c.logger.Debug("Successfully saved image: %s", filePath)
 	return nil
 }
 

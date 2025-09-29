@@ -8,11 +8,13 @@
   - [Platform-Specific Considerations](#platform-specific-considerations)
   - [Testing Your Installation](#testing-your-installation)
   - [Dependencies](#dependencies)
-- [Configuration](#configuration-1)
+- [Configuration Management](#configuration-management)
   - [Configuration Options](#configuration-options)
   - [Config CLI](#config-cli)
+  - [CLI Commands Reference](#cli-commands-reference)
 - [Usage](#usage)
   - [As an MCP Server](#as-an-mcp-server)
+  - [Command Line Interface](#command-line-interface)
   - [MCP Tool Usage](#mcp-tool-usage)
   - [Output Structure](#output-structure)
   - [Diagram Detection Output](#diagram-detection-output)
@@ -145,7 +147,7 @@ Download the latest release for your platform from the [Releases page](https://g
 5. **Verify Installation:**
    ```cmd
    # Open a new Command Prompt and test
-   pdf-md-mcp --version
+   pdf-md-mcp config help
    ```
 
 #### Mac
@@ -200,10 +202,13 @@ Download the latest release for your platform from the [Releases page](https://g
 3. **Verify Installation:**
    ```bash
    # Test the installation
-   pdf-md-mcp --version
+   pdf-md-mcp config help
    
    # Check which binary is being used
    which pdf-md-mcp
+   
+   # Check permissions
+   ls -la $(which pdf-md-mcp)
    ```
 
 4. **macOS Security Notes:**
@@ -368,14 +373,14 @@ Create test directories and run a quick test:
 ```cmd
 mkdir "%USERPROFILE%\Documents\PDFs"
 mkdir "%USERPROFILE%\Documents\PDF-Output"
-pdf-md-mcp.exe --version
+pdf-md-mcp config help
 ```
 
 #### Mac/Linux
 ```bash
 mkdir -p ~/Documents/PDFs
 mkdir -p ~/Documents/PDF-Output
-pdf-md-mcp --version
+pdf-md-mcp config help
 ```
 
 ### Dependencies
@@ -385,14 +390,9 @@ The server uses the following Go modules:
 - `github.com/ledongthuc/pdf` - PDF processing and text extraction
 - `github.com/disintegration/imaging` - Image processing and manipulation
 
-## Configuration
+## Configuration Management
 
-The server is configured using environment variables. Copy the example configuration file and customize it:
-
-```bash
-cp pdf_md_mcp.env .env
-# Edit .env with your specific settings
-```
+The server is configured using environment variables. The built-in Config CLI provides a convenient way to manage configuration files without needing external tools.
 
 ### Configuration Options
 
@@ -414,6 +414,286 @@ cp pdf_md_mcp.env .env
 | `EXTRACT_TABLES` | Enable table extraction | `true` |
 | `EXTRACT_IMAGES` | Enable image extraction | `true` |
 | `LOG_LEVEL` | Logging verbosity (debug/info/warn/error) | `info` |
+| `MCP_TRANSPORT` | Transport method for MCP communication | `stdio` |
+
+### Config CLI
+
+The server includes a built-in configuration CLI that helps you generate, view, and modify configuration files:
+
+```bash
+# Show all available commands
+pdf-md-mcp config help
+
+# Create a new .env file with default values
+pdf-md-mcp config generate
+
+# Create config at a specific location
+pdf-md-mcp config create /path/to/my-config.env
+
+# Force overwrite existing config
+pdf-md-mcp config create /path/to/my-config.env --force
+
+# View current configuration (from .env)
+pdf-md-mcp config show
+
+# View configuration from specific file
+pdf-md-mcp config show -f /path/to/config.env
+
+# View configuration as JSON
+pdf-md-mcp config show --format json
+
+# Update a configuration value
+pdf-md-mcp config set IMAGE_MAX_DPI 200
+
+# Update value in specific file
+pdf-md-mcp config set -f /path/to/config.env LOG_LEVEL debug
+
+# Get a specific configuration value
+pdf-md-mcp config get PDF_INPUT_DIR
+
+# List all available configuration keys
+pdf-md-mcp config list-keys
+```
+
+### CLI Commands Reference
+
+#### Basic Commands
+
+**Generate Config File:**
+```bash
+pdf-md-mcp config generate [-f <file>] [--force]
+```
+- Creates a new configuration file with default values and helpful comments
+- Uses `.env` as default filename if `-f` not specified
+- Won't overwrite existing files unless `--force` is used
+
+**Create Config File:**
+```bash
+pdf-md-mcp config create <file> [--force]
+```
+- Creates a new configuration file at the specified path (path is required)
+- Fails if file exists unless `--force` is used
+- Creates parent directories if they don't exist
+
+**Show Configuration:**
+```bash
+pdf-md-mcp config show [-f <file>] [--format env|json]
+```
+- Displays the resolved configuration from the specified file
+- Uses `.env` as default if `-f` not specified
+- Output format: `env` (default) or `json`
+- Validates configuration and shows any errors
+
+**Set Configuration Value:**
+```bash
+pdf-md-mcp config set [-f <file>] KEY VALUE
+```
+- Updates or adds a configuration value in the file
+- Validates known configuration keys
+- Creates file if it doesn't exist
+
+**Get Configuration Value:**
+```bash
+pdf-md-mcp config get [-f <file>] KEY
+```
+- Retrieves a specific configuration value
+- Returns error if key doesn't exist
+
+**List Available Keys:**
+```bash
+pdf-md-mcp config list-keys
+```
+- Shows all available configuration keys with descriptions and defaults
+- Useful for discovering configuration options
+
+#### Advanced Usage Examples
+
+**Development Setup:**
+```bash
+# Create development config
+pdf-md-mcp config create dev.env
+pdf-md-mcp config set -f dev.env PDF_INPUT_DIR "./test-pdfs"
+pdf-md-mcp config set -f dev.env OUTPUT_BASE_DIR "./test-output"
+pdf-md-mcp config set -f dev.env LOG_LEVEL debug
+pdf-md-mcp config set -f dev.env DETECT_DIAGRAMS true
+
+# View the configuration
+pdf-md-mcp config show -f dev.env
+```
+
+**Production Setup:**
+```bash
+# Create production config
+pdf-md-mcp config create /etc/pdf-md-mcp/production.env
+pdf-md-mcp config set -f /etc/pdf-md-mcp/production.env PDF_INPUT_DIR "/data/pdfs"
+pdf-md-mcp config set -f /etc/pdf-md-mcp/production.env OUTPUT_BASE_DIR "/data/output"
+pdf-md-mcp config set -f /etc/pdf-md-mcp/production.env LOG_LEVEL info
+pdf-md-mcp config set -f /etc/pdf-md-mcp/production.env IMAGE_MAX_DPI 150
+
+# Export as JSON for documentation
+pdf-md-mcp config show -f /etc/pdf-md-mcp/production.env --format json > production-config.json
+```
+
+**Configuration Validation:**
+```bash
+# Check if configuration is valid
+pdf-md-mcp config show -f .env > /dev/null && echo "Config is valid" || echo "Config has errors"
+
+# Get specific values for scripts
+INPUT_DIR=$(pdf-md-mcp config get PDF_INPUT_DIR)
+OUTPUT_DIR=$(pdf-md-mcp config get OUTPUT_BASE_DIR)
+```
+
+## Usage
+
+### As an MCP Server
+
+The primary use case is as an MCP (Model Context Protocol) server that integrates with AI coding assistants. The server communicates via stdio transport and processes requests to convert PDF files to Markdown.
+
+To run as an MCP server:
+
+```bash
+# Ensure configuration is set up
+pdf-md-mcp config generate
+pdf-md-mcp config set PDF_INPUT_DIR "/path/to/your/pdfs"
+
+# Start the server (usually done by AI assistant)
+pdf-md-mcp
+```
+
+### Command Line Interface
+
+The CLI provides two main modes of operation:
+
+1. **Configuration Management** (via `config` subcommand)
+2. **MCP Server Mode** (default, no arguments)
+
+**Configuration Mode:**
+```bash
+# Enter configuration mode
+pdf-md-mcp config [subcommand] [options]
+
+# Examples
+pdf-md-mcp config help
+pdf-md-mcp config generate
+pdf-md-mcp config show
+```
+
+**Server Mode:**
+```bash
+# Start MCP server (reads from stdin, writes to stdout)
+pdf-md-mcp
+
+# Server will load configuration from:
+# 1. pdf_md_mcp.env (if exists)
+# 2. .env (if exists)
+# 3. System environment variables
+```
+
+**Environment File Priority:**
+The server searches for configuration in this order:
+1. `pdf_md_mcp.env` in current directory
+2. `.env` in current directory  
+3. System environment variables
+
+**Command Line Help:**
+```bash
+# Show config CLI help
+pdf-md-mcp config help
+
+# Show config subcommand usage
+pdf-md-mcp config generate -h    # (not implemented, use 'help')
+pdf-md-mcp config show -h        # (not implemented, use 'help')
+```
+
+**Note:** The main executable currently only supports the `config` subcommand and MCP server mode. General CLI options like `--version` or `--help` are not implemented. Use `pdf-md-mcp config help` for configuration assistance.
+
+### MCP Tool Usage
+
+When integrated with an AI assistant, the server exposes these tools:
+
+- `convert_pdf_to_markdown`: Convert a single PDF file to Markdown
+- `convert_directory_to_markdown`: Batch convert all PDFs in a directory
+- `list_pdf_files`: List available PDF files in the configured input directory
+
+The tools automatically handle:
+- Image extraction and conversion to PNG format
+- Table detection and conversion to Markdown tables
+- Header level adjustment for proper document structure
+- Optional table of contents generation
+- Diagram detection and PlantUML code generation (if enabled)
+
+### Output Structure
+
+The server creates organized output directories with the `MARKDOWN_` prefix:
+```
+output/
+├── MARKDOWN_document1/
+│   ├── document1.md
+│   ├── images/
+│   │   ├── image_1.png
+│   │   └── image_2.png
+│   └── diagrams/
+│       └── diagram_1.puml
+└── MARKDOWN_document2/
+    ├── document2.md
+    └── images/
+        └── image_1.png
+```
+
+### Diagram Detection Output
+
+When diagram detection is enabled (`DETECT_DIAGRAMS=true`), the server will:
+
+1. Analyze PDF pages for diagram-like content
+2. Generate PlantUML code based on detected patterns
+3. Save PlantUML files in a `diagrams/` subdirectory
+4. Reference diagrams in the generated Markdown
+
+Example diagram output:
+```plantuml
+@startuml
+!theme blueprint
+skinparam backgroundColor #FFFFFF
+
+rectangle "Input PDF" as input
+rectangle "Text Extraction" as extract
+rectangle "Diagram Detection" as detect
+rectangle "PlantUML Generation" as plantuml
+rectangle "Markdown Output" as output
+
+input --> extract
+extract --> detect
+detect --> plantuml
+plantuml --> output
+@enduml
+```
+
+## Integration with AI Assistants
+
+### Tabnine Enterprise Agent
+
+The server integrates seamlessly with Tabnine Enterprise Agent and other AI coding assistants that support the MCP protocol. To configure:
+
+1. Add the server to your AI assistant's MCP configuration
+2. Ensure the server binary is in your PATH
+3. Configure the required environment variables
+
+Example MCP configuration for Tabnine:
+```json
+{
+  "mcpServers": {
+    "pdf-to-markdown": {
+      "command": "pdf-md-mcp",
+      "args": [],
+      "env": {
+        "PDF_INPUT_DIR": "/path/to/your/pdfs",
+        "OUTPUT_BASE_DIR": "/path/to/output"
+      }
+    }
+  }
+}
+```
 
 ## Development
 
@@ -448,11 +728,12 @@ make lint
 ```
 .
 ├── main.go              # Main server entry point
-├── config.go            # Configuration management
-├── logger.go            # Structured logging
-├── pdf_converter.go     # PDF processing engine
-├── diagram_detector.go  # Diagram detection and PlantUML generation
-├── mcp_handler.go       # MCP protocol implementation
+├── cli/                 # Command-line interface package
+│   └── config_cli.go    # Configuration CLI implementation
+├── config/              # Configuration management package
+├── logger/              # Structured logging package
+├── mcp/                 # MCP protocol implementation package
+├── pdfconv/             # PDF processing engine package
 ├── go.mod               # Go module definition
 ├── pdf_md_mcp.env       # Example configuration
 ├── Makefile             # Build automation

@@ -1,0 +1,54 @@
+# PDF to Markdown MCP Server Configuration
+# Copy this file and rename to .env or set these variables in your environment
+
+# Input PDF directory path (absolute or relative to the server working directory)
+# The server will process all PDF files found in this directory
+PDF_INPUT_DIR=/path/to/your/pdf/directory
+
+# Base output directory where the MARKDOWN_<filename> directory will be created
+OUTPUT_BASE_DIR=./output
+
+# MCP server settings
+MCP_SERVER_NAME=pdf-to-markdown-server
+MCP_SERVER_VERSION=1.0.0
+
+# PDF processing settings
+# Maximum image resolution for extracted images (in DPI)
+IMAGE_MAX_DPI=300
+
+# Image format for extracted images (png, jpg)
+IMAGE_FORMAT=png
+
+# Whether to preserve original image aspect ratio
+PRESERVE_ASPECT_RATIO=true
+
+# Markdown settings
+# Whether to include table of contents
+INCLUDE_TOC=true
+
+# Header level for sections (1-6)
+BASE_HEADER_LEVEL=1
+
+# Whether to extract and convert tables
+EXTRACT_TABLES=true
+
+# Whether to extract and save images
+EXTRACT_IMAGES=true
+
+# Diagram detection and PlantUML settings
+# Whether to detect diagrams in PDFs and convert to PlantUML
+DETECT_DIAGRAMS=true
+
+# Minimum confidence threshold for diagram detection (0.0-1.0)
+DIAGRAM_CONFIDENCE=0.7
+
+# PlantUML diagram style (default, blueprint, modern)
+PLANTUML_STYLE=default
+
+# PlantUML color scheme (mono, color, auto)
+PLANTUML_COLOR_SCHEME=color
+
+# Logging level (debug, info, warn, error)
+LOG_LEVEL=info
+
+

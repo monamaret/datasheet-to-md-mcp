@@ -26,6 +26,7 @@ type ConfigCLI struct{}
 //
 // Subcommands:
 //   - generate [-f <file>]            Create a new config file with default values (non-destructive if exists unless --force)
+//   - create <file>                   Create a new config file at the specified path (required)
 //   - show [-f <file>] [--format <env|json>]   Print the resolved config from the file
 //   - set [-f <file>] KEY VALUE        Update or add a setting in the config file
 //   - get [-f <file>] KEY              Print a specific setting value from the config file
@@ -42,6 +43,18 @@ func (c *ConfigCLI) Run(args []string) int {
 	case "generate":
 		file, force := parseFileFlag(args[1:])
 		if err := c.generate(file, force); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(os.Stdout, "Config created at %s\n", file)
+		return 0
+	case "create":
+		file, force, err := parseCreateArgs(args[1:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		if err := c.create(file, force); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return 1
 		}
@@ -96,6 +109,7 @@ func (c *ConfigCLI) printHelp() {
 Usage:
   pdf-md-mcp config help
   pdf-md-mcp config generate [-f <file>] [--force]
+  pdf-md-mcp config create <file> [--force]
   pdf-md-mcp config show [-f <file>] [--format env|json]
   pdf-md-mcp config set [-f <file>] KEY VALUE
   pdf-md-mcp config get [-f <file>] KEY
@@ -106,9 +120,23 @@ Description:
   This CLI helps you generate a new config file, inspect current values, and update
   individual settings. Configuration keys and defaults are aligned with the project's documentation.
 
+Commands:
+  generate    Create a new config file with optional -f flag (defaults to .env)
+  create      Create a new config file at the specified path (path required)
+  show        Display configuration from file
+  set         Update a configuration value
+  get         Read a single configuration value
+  list-keys   Show all available configuration keys
+
 Examples:
   # Create a new .env file using defaults (will not overwrite existing file)
   pdf-md-mcp config generate -f .env
+
+  # Create a new config file at a specific path (path is required)
+  pdf-md-mcp config create /path/to/config.env
+
+  # Create and overwrite if exists
+  pdf-md-mcp config create /path/to/config.env --force
 
   # Print the resolved config from a file as .env lines
   pdf-md-mcp config show -f .env
@@ -177,14 +205,36 @@ func (c *ConfigCLI) generate(path string, force bool) error {
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 
-	w.WriteString("# PDF to Markdown MCP Server Configuration\n")
-	w.WriteString("# See README.md for detailed descriptions of each setting.\n\n")
+	// Use ConfigExample to get the formatted configuration content
+	content := config.ConfigExample()
+	_, err = w.WriteString(content)
+	return err
+}
 
-	for _, item := range knownKeys {
-		w.WriteString(fmt.Sprintf("# %s\n", item.Description))
-		w.WriteString(fmt.Sprintf("%s=%s\n\n", item.Key, item.Default))
+// create creates a new env file at the specified path with default values.
+func (c *ConfigCLI) create(path string, force bool) error {
+	if path == "" {
+		return errors.New("file path required for create command")
 	}
-	return nil
+	if _, err := os.Stat(path); err == nil && !force {
+		return fmt.Errorf("file already exists: %s (use --force to overwrite)", path)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	defer w.Flush()
+
+	// Use ConfigExample to get the formatted configuration content
+	content := config.ConfigExample()
+	_, err = w.WriteString(content)
+	return err
 }
 
 // show loads the config file and prints the resolved configuration using the project's validation.
@@ -305,6 +355,20 @@ func parseFileFlag(args []string) (string, bool) {
 		}
 	}
 	return file, force
+}
+
+func parseCreateArgs(args []string) (string, bool, error) {
+	if len(args) == 0 {
+		return "", false, errors.New("file path required for create command")
+	}
+	file := args[0]
+	force := false
+	for i := 1; i < len(args); i++ {
+		if args[i] == "--force" {
+			force = true
+		}
+	}
+	return file, force, nil
 }
 
 func parseOnlyFileFlag(args []string) string {
