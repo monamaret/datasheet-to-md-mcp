@@ -43,7 +43,7 @@
 
 Download the latest pre-built binary for your platform from the Releases page:
 
-- https://github.com/your-repo/datasheet-to-md-mcp/releases
+- https://github.com/monamaret/datasheet-to-md-mcp/releases
 
 After downloading:
 - Place the binary in a directory on your PATH (e.g., /usr/local/bin on macOS/Linux, or a PATH directory on Windows)
@@ -60,7 +60,7 @@ For instructions on building from source, see the Development section below.
 
 ### Option 1: Download Pre-built Binaries (Recommended)
 
-Download the latest release for your platform from the [Releases page](https://github.com/your-repo/datasheet-to-md-mcp/releases):
+Download the latest release for your platform from the [Releases page](https://github.com/monamaret/datasheet-to-md-mcp/releases):
 
 #### Windows
 1. Download `pdf-md-mcp-windows-amd64.zip`
@@ -77,10 +77,10 @@ Download the latest release for your platform from the [Releases page](https://g
 2. Extract and install:
    ```bash
    # Intel Mac
-   curl -L https://github.com/your-repo/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-darwin-amd64.tar.gz | tar -xz
+   curl -L https://github.com/monamaret/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-darwin-amd64.tar.gz | tar -xz
    
    # Apple Silicon Mac (M1/M2/M3)
-   curl -L https://github.com/your-repo/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-darwin-arm64.tar.gz | tar -xz
+   curl -L https://github.com/monamaret/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-darwin-arm64.tar.gz | tar -xz
    
    # Make executable and move to PATH
    chmod +x pdf-md-mcp
@@ -91,11 +91,11 @@ Download the latest release for your platform from the [Releases page](https://g
 1. Download the appropriate binary:
    ```bash
    # For 64-bit Raspberry Pi OS
-   wget https://github.com/your-repo/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-linux-arm64.tar.gz
+   wget https://github.com/monamaret/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-linux-arm64.tar.gz
    tar -xzf pdf-md-mcp-linux-arm64.tar.gz
    
    # For 32-bit Raspberry Pi OS
-   wget https://github.com/your-repo/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-linux-arm.tar.gz
+   wget https://github.com/monamaret/datasheet-to-md-mcp/releases/latest/download/pdf-md-mcp-linux-arm.tar.gz
    tar -xzf pdf-md-mcp-linux-arm.tar.gz
    
    # Make executable and move to PATH
@@ -110,7 +110,7 @@ Download the latest release for your platform from the [Releases page](https://g
 2. Install Git from [git-scm.com](https://git-scm.com/download/win)
 3. Open Command Prompt or PowerShell as Administrator:
    ```cmd
-   git clone https://github.com/your-repo/datasheet-to-md-mcp.git
+   git clone https://github.com/monamaret/datasheet-to-md-mcp.git
    cd datasheet-to-md-mcp
    go mod download
    go build -o pdf-md-mcp.exe .
@@ -233,7 +233,7 @@ Download the latest release for your platform from the [Releases page](https://g
    source ~/.bashrc
    
    # Clone and build
-   git clone https://github.com/your-repo/datasheet-to-md-mcp.git
+   git clone https://github.com/monamaret/datasheet-to-md-mcp.git
    cd datasheet-to-md-mcp
    make setup
    make build
@@ -301,7 +301,7 @@ Download the latest release for your platform from the [Releases page](https://g
 If you have Go installed and configured:
 ```bash
 # Install directly from source
-go install github.com/your-repo/datasheet-to-md-mcp@latest
+go install github.com/monamaret/datasheet-to-md-mcp@latest
 
 # The binary will be available in $GOPATH/bin or $HOME/go/bin
 # Make sure this directory is in your PATH:

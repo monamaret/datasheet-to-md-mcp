@@ -24,6 +24,18 @@ import (
 	"datasheet-to-md-mcp/uml"
 )
 
+// Constants for image processing limits
+const (
+	MaxImageWidth       = 10000   // Maximum allowed image width in pixels
+	MaxImageHeight      = 10000   // Maximum allowed image height in pixels
+	MaxImagePixels      = 4000000 // Maximum total pixels (width * height)
+	DefaultImageWidth   = 200     // Default width for placeholder images
+	DefaultImageHeight  = 150     // Default height for placeholder images
+	DefaultHeaderLength = 60      // Maximum length for header detection
+	MaxHeaderWords      = 5       // Maximum words in a detected header
+	ShortHeaderLength   = 40      // Length threshold for short headers
+)
+
 // PDFConverter handles the conversion of PDF files to Markdown format with image extraction.
 // It manages the PDF document parsing, text extraction, image processing, and Markdown generation.
 type PDFConverter struct {
@@ -87,8 +99,31 @@ func NewPDFConverter(cfg *config.Config, log *logger.Logger) (*PDFConverter, err
 // ConvertPDF processes a PDF file and converts it to Markdown format with extracted images.
 func (c *PDFConverter) ConvertPDF(pdfPath, outputBaseDir string) (*ConversionResult, error) {
 	c.logger.Info("Starting PDF conversion: %s", pdfPath)
+
+	// Validate input parameters
+	if strings.TrimSpace(pdfPath) == "" {
+		return nil, fmt.Errorf("PDF path cannot be empty")
+	}
+	if strings.TrimSpace(outputBaseDir) == "" {
+		return nil, fmt.Errorf("output base directory cannot be empty")
+	}
+
+	// Clean and validate paths
+	pdfPath = filepath.Clean(pdfPath)
+	outputBaseDir = filepath.Clean(outputBaseDir)
+
 	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("PDF file does not exist: %s", pdfPath)
+	}
+
+	// Check if it's actually a file, not a directory
+	if fileInfo, err := os.Stat(pdfPath); err == nil && fileInfo.IsDir() {
+		return nil, fmt.Errorf("path is a directory, not a file: %s", pdfPath)
+	}
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(pdfPath), ".pdf") {
+		return nil, fmt.Errorf("file does not have a .pdf extension: %s", pdfPath)
 	}
 
 	file, reader, err := pdf.Open(pdfPath)
@@ -169,20 +204,42 @@ func (c *PDFConverter) extractPagesContent(reader *pdf.Reader, outputDir string)
 func (c *PDFConverter) extractImagesFromPage(page pdf.Page, pageNum int, outputDir string) ([]PDFImage, error) {
 	var images []PDFImage
 	c.logger.Debug("Extracting images from page %d", pageNum)
+
+	// Safely check for resources
 	resources := page.V.Key("Resources")
 	if resources.IsNull() {
 		c.logger.Debug("No resources found on page %d", pageNum)
 		return images, nil
 	}
+
 	xObjects := resources.Key("XObject")
 	if xObjects.IsNull() {
 		c.logger.Debug("No XObject resources found on page %d", pageNum)
 		return images, nil
 	}
+
 	imageCount := 0
-	for _, name := range xObjects.Keys() {
-		obj := xObjects.Key(name)
-		if obj.Key("Subtype").Name() == "Image" {
+	objKeys := xObjects.Keys()
+
+	for _, name := range objKeys {
+		// Skip if name is empty or invalid
+		if name == "" {
+			continue
+		}
+
+		// Process each image object with error recovery
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					c.logger.Warn("Recovered from panic while processing image %s on page %d: %v", name, pageNum, r)
+				}
+			}()
+
+			obj := xObjects.Key(name)
+			if obj.IsNull() || obj.Key("Subtype").Name() != "Image" {
+				return // Exit anonymous function only - this is correct
+			}
+
 			imageCount++
 			filename := fmt.Sprintf("page_%d_image_%d.png", pageNum, imageCount)
 			imagePath := filepath.Join(outputDir, filename)
@@ -191,13 +248,14 @@ func (c *PDFConverter) extractImagesFromPage(page pdf.Page, pageNum int, outputD
 			img, err := c.extractImageFromXObject(obj)
 			if err != nil {
 				c.logger.Warn("Failed to extract image data for %s: %v, using placeholder", filename, err)
-				img = c.createPlaceholderImage(200, 150)
+				img = c.createPlaceholderImage(DefaultImageWidth, DefaultImageHeight)
 			}
 
 			if err := c.saveImage(img, imagePath); err != nil {
 				c.logger.Warn("Failed to save image %s: %v", imagePath, err)
-				continue
+				return // Exit anonymous function only - this is correct, continue processing other images
 			}
+
 			var diagrams []uml.DetectedDiagram
 			if c.config.DetectDiagrams {
 				detectedDiagrams, err := c.diagramDetector.DetectDiagramsInImage(imagePath)
@@ -218,7 +276,7 @@ func (c *PDFConverter) extractImagesFromPage(page pdf.Page, pageNum int, outputD
 				Diagrams: diagrams,
 			}
 			images = append(images, pdfImage)
-		}
+		}()
 	}
 	if imageCount > 0 {
 		c.logger.Info("Extracted %d images from page %d", imageCount, pageNum)
@@ -242,11 +300,23 @@ func (c *PDFConverter) extractImageFromXObject(obj pdf.Value) (image.Image, erro
 		return nil, fmt.Errorf("failed to read stream from XObject: %v", err)
 	}
 
-	// Get image properties
+	// Get image properties with safe defaults
 	width := int(obj.Key("Width").Int64())
 	height := int(obj.Key("Height").Int64())
+
+	// Validate dimensions
+	if width <= 0 || height <= 0 || width > MaxImageWidth || height > MaxImageHeight {
+		c.logger.Warn("Invalid or excessive image dimensions: %dx%d, using placeholder", width, height)
+		return c.createPlaceholderImage(DefaultImageWidth, DefaultImageHeight), nil
+	}
+
 	colorSpace := obj.Key("ColorSpace").Name()
 	bitsPerComponent := int(obj.Key("BitsPerComponent").Int64())
+
+	// Validate bits per component
+	if bitsPerComponent <= 0 {
+		bitsPerComponent = 8 // Default fallback
+	}
 
 	c.logger.Debug("Extracting image: %dx%d, colorspace: %s, bits: %d", width, height, colorSpace, bitsPerComponent)
 
@@ -283,6 +353,12 @@ func (c *PDFConverter) extractImageFromXObject(obj pdf.Value) (image.Image, erro
 func (c *PDFConverter) decodeRawImageData(data []byte, width, height int, colorSpace string, bitsPerComponent int) (image.Image, error) {
 	if width <= 0 || height <= 0 {
 		return nil, fmt.Errorf("invalid image dimensions: %dx%d", width, height)
+	}
+
+	// Prevent excessive memory allocation
+	if width*height > MaxImagePixels {
+		c.logger.Warn("Image too large (%dx%d = %d pixels), using placeholder", width, height, width*height)
+		return c.createPlaceholderImage(width, height), nil
 	}
 
 	// Handle ColorSpace as an array (e.g., [/ICCBased ...])
@@ -517,14 +593,14 @@ func (c *PDFConverter) formatTextContent(text string) string {
 }
 
 func (c *PDFConverter) looksLikeHeader(line string) bool {
-	if len(line) > 60 {
+	if len(line) > DefaultHeaderLength {
 		return false
 	}
 	line = strings.TrimSpace(line)
 	if strings.HasSuffix(line, ":") {
 		return true
 	}
-	if len(line) < 40 && strings.ToUpper(line) == line && len(strings.Fields(line)) <= 5 {
+	if len(line) < ShortHeaderLength && strings.ToUpper(line) == line && len(strings.Fields(line)) <= MaxHeaderWords {
 		return true
 	}
 	headerKeywords := []string{"OVERVIEW", "DESCRIPTION", "FEATURES", "SPECIFICATIONS",
@@ -566,9 +642,15 @@ func (c *PDFConverter) ConvertPDFsInDirectory(inputDir, outputBaseDir string) (*
 		return &BatchConversionResult{InputDir: inputDir, OutputBaseDir: outputBaseDir, Results: []ConversionResult{}, SuccessCount: 0, FailureCount: 0, Errors: []ConversionError{}, FileCount: 0, TotalPageCount: 0, TotalImageCount: 0}, nil
 	}
 	c.logger.Info("Found %d PDF files to process", len(pdfFiles))
-	result := &BatchConversionResult{InputDir: inputDir, OutputBaseDir: outputBaseDir, Results: make([]ConversionResult, 0, len(pdfFiles))}
-	for _, pdfPath := range pdfFiles {
-		c.logger.Info("Processing PDF file: %s", filepath.Base(pdfPath))
+	result := &BatchConversionResult{
+		InputDir:      inputDir,
+		OutputBaseDir: outputBaseDir,
+		Results:       make([]ConversionResult, 0, len(pdfFiles)),
+		Errors:        make([]ConversionError, 0), // Pre-allocate to avoid nil slice issues
+	}
+
+	for i, pdfPath := range pdfFiles {
+		c.logger.Info("Processing PDF file (%d/%d): %s", i+1, len(pdfFiles), filepath.Base(pdfPath))
 		conversionResult, err := c.ConvertPDF(pdfPath, outputBaseDir)
 		if err != nil {
 			c.logger.Error("Failed to convert PDF %s: %v", pdfPath, err)
