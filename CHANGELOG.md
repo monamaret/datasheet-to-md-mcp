@@ -2,7 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## v1.0.0 - 2025-09-29
+## v1.0.1 - 2025-09-28
+
+### Changed
+- README updated for ease of reading
+- unit tests run with CI
+
+## v1.0.0 - 2025-09-28
 
 Initial stable release of Datasheet (PDF) to Markdown MCP Server.
 
