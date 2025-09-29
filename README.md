@@ -3,33 +3,14 @@
 ## Table of Contents
 - [Features](#features)
 - [Installation](#installation)
-  - [Prerequisites](#prerequisites)
-  - [Option 1: Download Pre-built Binaries (Recommended)](#option-1-download-pre-built-binaries-recommended)
-    - [Windows](#windows)
-    - [Mac](#mac)
-    - [Raspberry Pi Linux](#raspberry-pi-linux)
-  - [Option 2: Build from Source](#option-2-build-from-source)
-    - [Windows](#windows-1)
-    - [Mac](#mac-1)
-    - [Raspberry Pi Linux](#raspberry-pi-linux-1)
-  - [Alternative Installation Methods](#alternative-installation-methods)
-    - [Using Go Install (All Platforms)](#using-go-install-all-platforms)
-    - [Docker Installation (All Platforms)](#docker-installation-all-platforms)
 - [Configuration](#configuration)
   - [Quick Start Configuration](#quick-start-configuration)
-    - [Windows](#windows-2)
-    - [Mac](#mac-2)
-    - [Raspberry Pi Linux](#raspberry-pi-linux-2)
   - [Platform-Specific Considerations](#platform-specific-considerations)
-    - [Windows](#windows-3)
-    - [Mac](#mac-3)
-    - [Raspberry Pi](#raspberry-pi)
   - [Testing Your Installation](#testing-your-installation)
-    - [Windows](#windows-4)
-    - [Mac/Linux](#maclinux)
   - [Dependencies](#dependencies)
 - [Configuration](#configuration-1)
   - [Configuration Options](#configuration-options)
+  - [Config CLI](#config-cli)
 - [Usage](#usage)
   - [As an MCP Server](#as-an-mcp-server)
   - [MCP Tool Usage](#mcp-tool-usage)
@@ -41,13 +22,6 @@
   - [Building](#building)
   - [Testing](#testing)
   - [Project Structure](#project-structure)
-- [Function Documentation](#function-documentation)
-- [Troubleshooting](#troubleshooting)
-  - [Common Issues](#common-issues)
-  - [Logging](#logging)
-  - [Performance Tuning](#performance-tuning)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## Features
 
@@ -64,6 +38,16 @@
 - **Error Handling**: Robust error handling for batch processing with detailed reporting
 
 ## Installation
+
+Download the latest pre-built binary for your platform from the Releases page:
+
+- https://github.com/your-repo/datasheet-to-md-mcp/releases
+
+After downloading:
+- Place the binary in a directory on your PATH (e.g., /usr/local/bin on macOS/Linux, or a PATH directory on Windows)
+- Or run directly from the project's bin directory after building
+
+For instructions on building from source, see the Development section below.
 
 ### Prerequisites
 
@@ -339,91 +323,25 @@ sudo mv pdf-md-mcp /usr/local/bin/
 ### Quick Start Configuration
 
 #### Windows
-1. Create a configuration directory:
-   ```cmd
-   mkdir "%USERPROFILE%\pdf-md-mcp"
-   cd "%USERPROFILE%\pdf-md-mcp"
-   ```
-
-2. Create a `.env` file in Notepad:
-   ```cmd
-   notepad .env
-   ```
-
-3. Add the following configuration (adjust paths as needed):
-   ```env
-   PDF_INPUT_DIR=C:\Users\%USERNAME%\Documents\PDFs
-   OUTPUT_BASE_DIR=C:\Users\%USERNAME%\Documents\PDF-Output
-   MCP_SERVER_NAME=pdf-to-markdown-server
-   MCP_SERVER_VERSION=1.0.0
-   IMAGE_MAX_DPI=300
-   IMAGE_FORMAT=png
-   PRESERVE_ASPECT_RATIO=true
-   DETECT_DIAGRAMS=false
-   INCLUDE_TOC=true
-   BASE_HEADER_LEVEL=1
-   EXTRACT_TABLES=true
-   EXTRACT_IMAGES=true
-   LOG_LEVEL=info
-   ```
+```cmd
+mkdir "%USERPROFILE%\pdf-md-mcp"
+cd "%USERPROFILE%\pdf-md-mcp"
+notepad .env
+```
 
 #### Mac
-1. Create a configuration directory:
-   ```bash
-   mkdir -p ~/pdf-md-mcp
-   cd ~/pdf-md-mcp
-   ```
-
-2. Create and edit the configuration file:
-   ```bash
-   nano .env
-   ```
-
-3. Add the following configuration:
-   ```env
-   PDF_INPUT_DIR=/Users/$USER/Documents/PDFs
-   OUTPUT_BASE_DIR=/Users/$USER/Documents/PDF-Output
-   MCP_SERVER_NAME=pdf-to-markdown-server
-   MCP_SERVER_VERSION=1.0.0
-   IMAGE_MAX_DPI=300
-   IMAGE_FORMAT=png
-   PRESERVE_ASPECT_RATIO=true
-   DETECT_DIAGRAMS=false
-   INCLUDE_TOC=true
-   BASE_HEADER_LEVEL=1
-   EXTRACT_TABLES=true
-   EXTRACT_IMAGES=true
-   LOG_LEVEL=info
-   ```
+```bash
+mkdir -p ~/pdf-md-mcp
+cd ~/pdf-md-mcp
+nano .env
+```
 
 #### Raspberry Pi Linux
-1. Create a configuration directory:
-   ```bash
-   mkdir -p ~/pdf-md-mcp
-   cd ~/pdf-md-mcp
-   ```
-
-2. Create and edit the configuration file:
-   ```bash
-   nano .env
-   ```
-
-3. Add the following configuration:
-   ```env
-   PDF_INPUT_DIR=/home/$USER/Documents/PDFs
-   OUTPUT_BASE_DIR=/home/$USER/Documents/PDF-Output
-   MCP_SERVER_NAME=pdf-to-markdown-server
-   MCP_SERVER_VERSION=1.0.0
-   IMAGE_MAX_DPI=200
-   IMAGE_FORMAT=png
-   PRESERVE_ASPECT_RATIO=true
-   DETECT_DIAGRAMS=false
-   INCLUDE_TOC=true
-   BASE_HEADER_LEVEL=1
-   EXTRACT_TABLES=true
-   EXTRACT_IMAGES=true
-   LOG_LEVEL=info
-   ```
+```bash
+mkdir -p ~/pdf-md-mcp
+cd ~/pdf-md-mcp
+nano .env
+```
 
 ### Platform-Specific Considerations
 
@@ -497,112 +415,6 @@ cp pdf_md_mcp.env .env
 | `EXTRACT_IMAGES` | Enable image extraction | `true` |
 | `LOG_LEVEL` | Logging verbosity (debug/info/warn/error) | `info` |
 
-## Usage
-
-### As an MCP Server
-
-The server runs as an MCP server using standard input/output for communication with AI coding assistants:
-
-```bash
-# Start the MCP server
-./bin/pdf-md-mcp
-```
-
-### MCP Tool Usage
-
-The server provides two main tools:
-
-1. `convert_pdf_to_markdown` - Convert a single PDF file
-2. `convert_pdfs_in_directory` - Convert all PDF files in a directory
-
-**Single PDF File Conversion:**
-- `pdf_path` (required): Path to the input PDF file
-- `output_dir` (optional): Base output directory
-
-**Directory Batch Conversion:**
-- `input_dir` (required): Directory path containing PDF files to process
-- `output_dir` (optional): Base output directory
-
-**Example MCP tool calls:**
-```json
-{
-  "name": "convert_pdf_to_markdown",
-  "arguments": {
-    "pdf_path": "/path/to/datasheet.pdf",
-    "output_dir": "./output"
-  }
-}
-```
-
-```json
-{
-  "name": "convert_pdfs_in_directory",
-  "arguments": {
-    "input_dir": "/path/to/datasheets/",
-    "output_dir": "./output"
-  }
-}
-```
-
-### Output Structure
-
-The server creates a structured output directory:
-
-```
-output/
-└── MARKDOWN_<filename>/
-    ├── README.md          # Generated Markdown file
-    ├── image_001.png      # Extracted images
-    ├── image_002.png
-    └── ...
-```
-
-### Diagram Detection Output
-
-When diagram detection is enabled (`DETECT_DIAGRAMS=true`), the generated Markdown includes PlantUML diagrams:
-
-```markdown
-### Detected Block Diagram (Confidence: 80.0%)
-
-```plantuml
-@startuml
-' Block diagram detected from PDF
-!define BLOCK(x) rectangle x
-
-BLOCK(Input) {
-  [Input Signal]
-}
-...
-@enduml
-```
-
-*Original image: page_1_image_1.png*
-```
-
-For detailed information about diagram detection, see [DIAGRAM_DETECTION.md](DIAGRAM_DETECTION.md).
-
-## Integration with AI Assistants
-
-### Tabnine Enterprise Agent
-
-Add to your Tabnine configuration:
-
-```json
-{
-  "mcpServers": {
-    "pdf-to-markdown": {
-      "command": "/path/to/pdf-md-mcp",
-      "args": [],
-      "env": {
-        "PDF_INPUT_DIR": "/path/to/your/datasheets/",
-        "OUTPUT_BASE_DIR": "/path/to/output"
-      }
-    }
-  }
-}
-```
-
-
 ## Development
 
 ### Building
@@ -647,61 +459,3 @@ make lint
 ├── README.md            # This file
 └── DIAGRAM_DETECTION.md # Diagram detection documentation
 ```
-
-## Function Documentation
-
-All functions are thoroughly documented with detailed explanations:
-
-- **Configuration Management**: Environment variable loading and validation
-- **PDF Processing**: Text extraction, image processing, and content analysis
-- **MCP Protocol**: Message handling and tool execution via stdio
-- **Logging System**: Structured logging with configurable levels
-- **Markdown Generation**: Content formatting and structure preservation
-
-## Troubleshooting
-
-### Common Issues
-
-1. **PDF File Not Found**
-   - Verify the `PDF_INPUT_DIR` is correct and accessible
-   - Check file permissions
-
-2. **Permission Errors**
-   - Ensure the output directory is writable
-   - Check that the server has read access to the PDF files
-
-3. **Image Extraction Issues**
-   - Some PDFs may have complex image formats
-   - Try adjusting `IMAGE_MAX_DPI` setting
-   - Check if `EXTRACT_IMAGES` is enabled
-
-4. **MCP Communication Issues**
-   - Ensure the AI assistant is properly configured to use stdio transport
-   - Check that the server executable has proper permissions
-
-### Logging
-
-Increase log verbosity for debugging:
-
-```bash
-LOG_LEVEL=debug ./bin/pdf-md-mcp
-```
-
-### Performance Tuning
-
-- Adjust `IMAGE_MAX_DPI` for balance between quality and file size
-- Disable `EXTRACT_IMAGES` if images aren't needed for faster processing
-- Use stdio transport for reliable communication with AI assistants
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with proper documentation
-4. Add tests for new functionality
-5. Run `make fmt` and `make lint`
-6. Submit a pull request
-
-## License
-
-[Add your license information here]
