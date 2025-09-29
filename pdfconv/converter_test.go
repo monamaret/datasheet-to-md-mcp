@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jung-kurt/gofpdf"
+
 	"datasheet-to-md-mcp/config"
 	"datasheet-to-md-mcp/logger"
 	"datasheet-to-md-mcp/uml"
@@ -251,10 +253,7 @@ func TestConvertPDF_OutputBaseIsFileError(t *testing.T) {
 	cfg := &config.Config{IncludeTOC: true}
 	logr := logger.NewLogger("error")
 	conv, _ := NewPDFConverter(cfg, logr)
-	pdfPath := "pdf/pico-datasheet.pdf"
-	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		t.Skip("pico-datasheet.pdf not found, skipping")
-	}
+	pdfPath := createTempValidPDF(t)
 	baseFile := filepath.Join(t.TempDir(), "basefile")
 	if err := os.WriteFile(baseFile, []byte(""), 0644); err != nil {
 		t.Fatalf("failed to create base file: %v", err)
@@ -266,10 +265,7 @@ func TestConvertPDF_OutputBaseIsFileError(t *testing.T) {
 }
 
 func TestConvertPDF_EndToEnd_WithRealPDF(t *testing.T) {
-	pdfPath := "pdf/pico-datasheet.pdf"
-	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		t.Skip("pico-datasheet.pdf not found, skipping end-to-end test")
-	}
+	pdfPath := createTempValidPDF(t)
 	cfg := &config.Config{IncludeTOC: true, BaseHeaderLevel: 1, ExtractImages: true, DetectDiagrams: true, DiagramConfidence: 0.7}
 	logr := logger.NewLogger("warn")
 	conv, _ := NewPDFConverter(cfg, logr)
@@ -284,7 +280,7 @@ func TestConvertPDF_EndToEnd_WithRealPDF(t *testing.T) {
 	if res.PageCount < 1 {
 		t.Errorf("expected at least 1 page, got %d", res.PageCount)
 	}
-	if !strings.Contains(res.OutputDir, "MARKDOWN_pico-datasheet") {
+	if !strings.Contains(res.OutputDir, "MARKDOWN_test") {
 		t.Errorf("unexpected output dir: %s", res.OutputDir)
 	}
 	if _, err := os.Stat(res.MarkdownFile); err != nil {
@@ -304,10 +300,7 @@ func TestConvertPDF_EndToEnd_WithRealPDF(t *testing.T) {
 }
 
 func TestConvertPDFsInDirectory(t *testing.T) {
-	pdfSrc := "pdf/pico-datasheet.pdf"
-	if _, err := os.Stat(pdfSrc); os.IsNotExist(err) {
-		t.Skip("pico-datasheet.pdf not found, skipping directory conversion test")
-	}
+	pdfSrc := createTempValidPDF(t)
 	inDir := t.TempDir()
 	copy1 := filepath.Join(inDir, "one.pdf")
 	copy2 := filepath.Join(inDir, "nested", "two.PDF")
@@ -360,6 +353,20 @@ func TestConvertPDFsInDirectory_NoPDFs(t *testing.T) {
 }
 
 // Helpers
+func createTempValidPDF(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	pdfPath := filepath.Join(dir, "test.pdf")
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(40, 10, "Hello, PDF")
+	if err := pdf.OutputFileAndClose(pdfPath); err != nil {
+		t.Fatalf("failed to create temp pdf: %v", err)
+	}
+	return pdfPath
+}
+
 func copyFile(src, dst string) error {
 	srcF, err := os.Open(src)
 	if err != nil {

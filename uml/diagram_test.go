@@ -253,10 +253,8 @@ func TestApplyPlantUMLStyle(t *testing.T) {
 }
 
 func TestDiagramDetectorWithRealPDF(t *testing.T) {
-	pdfPath := "pdf/pico-datasheet.pdf"
-	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		t.Skip("pico-datasheet.pdf not found, skipping real PDF test")
-	}
+	// The original test relied on a PDF in pdf/ which no longer exists.
+	// Since DetectDiagramsInImage works on image files, keep this test focused on image detection.
 	cfg := &config.Config{DetectDiagrams: true, DiagramConfidence: 0.6, PlantUMLStyle: "default", PlantUMLColorScheme: "auto", ImageMaxDPI: 300, ImageFormat: "png"}
 	logr := logger.NewLogger("info")
 	d := NewDiagramDetector(cfg, logr)
