@@ -1,6 +1,53 @@
 # Datasheet (PDF) to Markdown MCP Server
 
-This is an MCP (Model Context Protocol) server optimized for converting hardware datasheet PDFs into structured Markdown files. It's designed to integrate with AI coding assistants and development workflows, making technical documentation more accessible and searchable. The server can process individual PDF files or batch process entire directories of PDFs.
+## Table of Contents
+- [Features](#features)
+- [Installation](#installation)
+  - [Prerequisites](#prerequisites)
+  - [Option 1: Download Pre-built Binaries (Recommended)](#option-1-download-pre-built-binaries-recommended)
+    - [Windows](#windows)
+    - [Mac](#mac)
+    - [Raspberry Pi Linux](#raspberry-pi-linux)
+  - [Option 2: Build from Source](#option-2-build-from-source)
+    - [Windows](#windows-1)
+    - [Mac](#mac-1)
+    - [Raspberry Pi Linux](#raspberry-pi-linux-1)
+  - [Alternative Installation Methods](#alternative-installation-methods)
+    - [Using Go Install (All Platforms)](#using-go-install-all-platforms)
+    - [Docker Installation (All Platforms)](#docker-installation-all-platforms)
+- [Configuration](#configuration)
+  - [Quick Start Configuration](#quick-start-configuration)
+    - [Windows](#windows-2)
+    - [Mac](#mac-2)
+    - [Raspberry Pi Linux](#raspberry-pi-linux-2)
+  - [Platform-Specific Considerations](#platform-specific-considerations)
+    - [Windows](#windows-3)
+    - [Mac](#mac-3)
+    - [Raspberry Pi](#raspberry-pi)
+  - [Testing Your Installation](#testing-your-installation)
+    - [Windows](#windows-4)
+    - [Mac/Linux](#maclinux)
+  - [Dependencies](#dependencies)
+- [Configuration](#configuration-1)
+  - [Configuration Options](#configuration-options)
+- [Usage](#usage)
+  - [As an MCP Server](#as-an-mcp-server)
+  - [MCP Tool Usage](#mcp-tool-usage)
+  - [Output Structure](#output-structure)
+  - [Diagram Detection Output](#diagram-detection-output)
+- [Integration with AI Assistants](#integration-with-ai-assistants)
+  - [Tabnine Enterprise Agent](#tabnine-enterprise-agent)
+- [Development](#development)
+  - [Building](#building)
+  - [Testing](#testing)
+  - [Project Structure](#project-structure)
+- [Function Documentation](#function-documentation)
+- [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Logging](#logging)
+  - [Performance Tuning](#performance-tuning)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -555,22 +602,6 @@ Add to your Tabnine configuration:
 }
 ```
 
-### Claude Desktop
-
-Add to your Claude Desktop configuration:
-
-```json
-{
-  "mcpServers": {
-    "pdf-to-markdown": {
-      "command": "/path/to/pdf-md-mcp",
-      "env": {
-        "PDF_INPUT_DIR": "/path/to/your/datasheets/"
-      }
-    }
-  }
-}
-```
 
 ## Development
 
